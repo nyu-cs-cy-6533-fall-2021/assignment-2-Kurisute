@@ -49,11 +49,15 @@ VertexBufferObject VBO_C;
 // Contains the vertex positions
 //Eigen::MatrixXf V(2,3);
 std::vector<glm::vec2> V(4);
+std::vector<glm::vec2> CENTER(4);
 std::vector<glm::vec3> C(4);
 std::vector<glm::vec3> C_BACK_UP(3);
 glm::mat4 VIEW;
 glm::mat4 PROJECTION;
-glm::mat4 TRANSFORMATION;
+std::vector<glm::mat4> MODEL(4);
+std::vector<glm::mat4> ROTATE(4);
+std::vector<glm::mat4> TRANS(4);
+std::vector<glm::mat4> SCALE(4);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
     glViewport(0, 0, width, height);
@@ -73,7 +77,6 @@ glm::vec2 cursor_pos_in_window(GLFWwindow* window){
     glm::vec4 p_screen(xpos,height-1-ypos,0,1);
     glm::vec4 p_canonical((p_screen.x/width)*2-1,(p_screen.y/height)*2-1,0,1);
     glm::vec4 p_world = glm::inverse(VIEW) * glm::inverse(PROJECTION) * p_canonical;
-    // std::cout << p_world.x << p_world.y << std::endl;
     
     return glm::vec2(p_world.x,p_world.y);
 }
@@ -117,13 +120,19 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         {
         case INSERT_MODE:
             V.push_back(world_pos);
+            CENTER.push_back(world_pos);
             C.push_back(glm::vec3(1.0f,1.0f,1.0f));
+            MODEL.push_back(glm::mat4(1.0f));
+            ROTATE.push_back(glm::mat4(1.0f));
+            TRANS.push_back(glm::mat4(1.0f));
+            SCALE.push_back(glm::mat4(1.0f));
             std::cout << "V.size:" << V.size() << std::endl;
             break;
         case TRANSLATION_MODE:
             //get selected object
             for(int i = 3;i < V.size()-1;i+=3){
-                if(in_triangle(world_pos,V[i],V[i+1],V[i+2])){
+                glm::vec2 trans_pos = glm::inverse(MODEL[i]) * glm::vec4(world_pos,0.0,1.0);
+                if(in_triangle(trans_pos,V[i],V[i+1],V[i+2])){
                     std::cout << "triangle:" << i << "selected." << std::endl;
                     SELECTED_OBJECT = i;
                     PRIM_SELECT = i;
@@ -142,7 +151,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
             {
                 int delete_object = -1;
                 for(int i = 3;i < V.size()-1;i+=3){
-                    if(in_triangle(world_pos,V[i],V[i+1],V[i+2])){
+                    glm::vec2 trans_pos = glm::inverse(MODEL[i]) * glm::vec4(world_pos,0.0,1.0);
+                    if(in_triangle(trans_pos,V[i],V[i+1],V[i+2])){
                         std::cout << "triangle:" << i << "deleted." << std::endl;
                         delete_object = i;
                         break;
@@ -229,42 +239,26 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             {
                 case GLFW_KEY_H:
                 {
-                    glm::mat4 trans = glm::mat4(1.0f);
                     glm::vec2 center = glm::vec2((V[PRIM_SELECT]+V[PRIM_SELECT+1]+V[PRIM_SELECT+2])/3.0f);
-                    trans = glm::rotate(trans,glm::radians(10.0f),glm::vec3(0.0,0.0,1.0));
-                    for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
-                        V[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
-                    }         
+                    ROTATE[PRIM_SELECT] = glm::rotate(ROTATE[PRIM_SELECT],glm::radians(10.0f),glm::vec3(0.0,0.0,1.0));
                 }
                     break;
                 case GLFW_KEY_J:
                 {
-                    glm::mat4 trans = glm::mat4(1.0f);
                     glm::vec2 center = glm::vec2((V[PRIM_SELECT]+V[PRIM_SELECT+1]+V[PRIM_SELECT+2])/3.0f);
-                    trans = glm::rotate(trans,glm::radians(-10.0f),glm::vec3(0.0,0.0,1.0));
-                    for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
-                        V[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
-                    }         
+                    ROTATE[PRIM_SELECT] = glm::rotate(ROTATE[PRIM_SELECT],glm::radians(-10.0f),glm::vec3(0.0,0.0,1.0));
                 }
                     break;
                 case GLFW_KEY_K:
                 {
-                    glm::mat4 trans = glm::mat4(1.0f);
                     glm::vec2 center = glm::vec2((V[PRIM_SELECT]+V[PRIM_SELECT+1]+V[PRIM_SELECT+2])/3.0f);
-                    trans = glm::scale(trans,glm::vec3(1.25,1.25,0.0));
-                    for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
-                        V[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
-                    }         
+                    SCALE[PRIM_SELECT] = glm::scale(SCALE[PRIM_SELECT],glm::vec3(1.25,1.25,0.0));       
                 }
                     break;
                 case GLFW_KEY_L:
                 {
-                    glm::mat4 trans = glm::mat4(1.0f);
                     glm::vec2 center = glm::vec2((V[PRIM_SELECT]+V[PRIM_SELECT+1]+V[PRIM_SELECT+2])/3.0f);
-                    trans = glm::scale(trans,glm::vec3(0.75,0.75,0.0));
-                    for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
-                        V[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
-                    }         
+                    SCALE[PRIM_SELECT] = glm::scale(SCALE[PRIM_SELECT],glm::vec3(0.75,0.75,0.0));       
                 }
                     break;
                 default:
@@ -386,6 +380,10 @@ int main(void){
     C[3] = glm::vec3(1.0, 1.0, 1.0);
     VBO_C.update(C);
 
+    CENTER[0] = glm::vec2(0, 0);
+    CENTER[1] = glm::vec2(0, 0);
+    CENTER[2] = glm::vec2(0, 0);
+
     glm::vec2 last_cursor_pos;
 
     int width, height;
@@ -393,7 +391,10 @@ int main(void){
     float aspect_ratio = float(height)/float(width);
     VIEW = glm::scale(glm::mat4(1.f), glm::vec3(aspect_ratio, 1.f, 1.f));
     PROJECTION = glm::mat4(1.0f);
-    TRANSFORMATION = glm::mat4(1.0f);
+    MODEL = {glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f)};
+    ROTATE = {glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f)};
+    SCALE = {glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f)};
+    TRANS = {glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f),glm::mat4(1.0f)};
 
     // Initialize the OpenGL Program
     // A program controls the OpenGL pipeline and it must contains
@@ -406,10 +407,11 @@ int main(void){
                     "out vec3 f_color;"
                     "uniform mat4 view;"
                     "uniform mat4 projection;"
-                    "uniform mat4 transformation;"
+                    "uniform mat4 model;"
+                    "uniform vec2 center;"
                     "void main()"
                     "{"
-                    "    gl_Position = projection * view * transformation * vec4(position, 0.0, 1.0);"
+                    "    gl_Position = projection * view * (model * vec4(position, 0.0, 1.0));"
                     "    f_color = color;"
                     "}";
     const GLchar* fragment_shader =
@@ -460,7 +462,6 @@ int main(void){
 
         glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, glm::value_ptr(VIEW));
         glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, glm::value_ptr(PROJECTION));
-        glUniformMatrix4fv(program.uniform("tranformation"), 1, GL_FALSE, glm::value_ptr(TRANSFORMATION));
 
         // Clear the framebuffer
         glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
@@ -472,15 +473,20 @@ int main(void){
         //Making translations
         if(SELECTED_OBJECT != -1){
             glm::vec2 motion = cursor_pos - last_cursor_pos;
-            TRANSFORMATION = glm::translate(TRANSFORMATION,glm::vec3(motion,0.0f));
+            TRANS[SELECTED_OBJECT] = glm::translate(TRANS[SELECTED_OBJECT],glm::vec3(motion.x,motion.y,0.0f));
         }
 
         VBO.update(V);
-        
         VBO_C.update(C);
 
         //Draw triangles
         for(int i = 0;i < V.size()-3;i+=3){
+            CENTER[i] = (V[i] + V[i+1] + V[i+2])/3.0f;
+            CENTER[i+1] = (V[i] + V[i+1] + V[i+2])/3.0f;
+            CENTER[i+2] = (V[i] + V[i+1] + V[i+2])/3.0f;
+            MODEL[i] = TRANS[i] * SCALE[i] * ROTATE[i];
+            glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, glm::value_ptr(MODEL[i]));
+            glUniformMatrix4fv(program.uniform("center"), 1, GL_FALSE, glm::value_ptr(CENTER[i]));
             glDrawArrays(GL_TRIANGLES, i, 3);
         }
 

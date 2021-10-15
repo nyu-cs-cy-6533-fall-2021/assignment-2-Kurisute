@@ -33,7 +33,8 @@ enum mode {
     INSERT_MODE = 1,
     TRANSLATION_MODE = 2,
     DELETE_MODE = 3,
-    COLOR_MODE = 4
+    COLOR_MODE = 4,
+    ANIMATION_MODE = 5
 };
 mode Operation_mode = DEFAULT_MODE;
 
@@ -49,10 +50,13 @@ VertexBufferObject VBO_C;
 // Contains the vertex positions
 //Eigen::MatrixXf V(2,3);
 std::vector<glm::vec2> V(4);
+std::vector<glm::vec2> V_BUF(4);
 std::vector<glm::vec3> C(4);
 std::vector<glm::vec3> C_BACK_UP(3);
 glm::mat4 VIEW;
 glm::mat4 PROJECTION;
+
+bool ANIMATION = false;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height){
     glViewport(0, 0, width, height);
@@ -116,6 +120,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         {
         case INSERT_MODE:
             V.push_back(world_pos);
+            V_BUF.push_back(world_pos);
             C.push_back(glm::vec3(1.0f,1.0f,1.0f));
             std::cout << "V.size:" << V.size() << std::endl;
             break;
@@ -149,6 +154,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                 }
                 if(delete_object != -1) {
                     V.erase(V.begin()+delete_object,V.begin()+delete_object+3);
+                    V_BUF.erase(V_BUF.begin()+delete_object,V_BUF.begin()+delete_object+3);
                     C.erase(C.begin()+delete_object,C.begin()+delete_object+3);
                 }
             }
@@ -198,6 +204,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             case GLFW_KEY_C:
                 Operation_mode = COLOR_MODE;
                 std::cout << "Color mode activated." << std::endl;
+                break;
+            case GLFW_KEY_V:
+                Operation_mode = ANIMATION_MODE;
+                std::cout << "Animation mode activated." << std::endl;
                 break;
             case GLFW_KEY_EQUAL:
                 PROJECTION = glm::scale(PROJECTION,glm::vec3(1.2f,1.2f,1.0f));
@@ -263,6 +273,36 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                     trans = glm::scale(trans,glm::vec3(0.75,0.75,0.0));
                     for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
                         V[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
+                    }         
+                }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if(Operation_mode == ANIMATION_MODE){
+            switch (key)
+            {
+                case GLFW_KEY_K:
+                {
+                    ANIMATION = true;
+                    glm::mat4 trans = glm::mat4(1.0f);
+                    glm::vec2 center = glm::vec2((V[PRIM_SELECT]+V[PRIM_SELECT+1]+V[PRIM_SELECT+2])/3.0f);
+                    trans = glm::scale(trans,glm::vec3(1.25,1.25,0.0));
+                    for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
+                        V_BUF[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
+                    }         
+                }
+                    break;
+                case GLFW_KEY_L:
+                {
+                    ANIMATION = true;
+                    glm::mat4 trans = glm::mat4(1.0f);
+                    glm::vec2 center = glm::vec2((V[PRIM_SELECT]+V[PRIM_SELECT+1]+V[PRIM_SELECT+2])/3.0f);
+                    trans = glm::scale(trans,glm::vec3(0.75,0.75,0.0));
+                    for(int i = PRIM_SELECT;i < PRIM_SELECT+3;i++){
+                        V_BUF[i] = glm::vec2(trans * glm::vec4(V[i]-center,0.0f,0.0f)) + center;
                     }         
                 }
                     break;
@@ -386,6 +426,7 @@ int main(void){
     VBO_C.update(C);
 
     glm::vec2 last_cursor_pos;
+    std::vector<glm::vec2> V_diff(3);
 
     int width, height;
     glfwGetWindowSize(window, &width, &height);
@@ -431,8 +472,9 @@ int main(void){
     program.bindVertexAttribArray("position",VBO);
     program.bindVertexAttribArray("color",VBO_C);
 
-    // Save the current time --- it will be used to dynamically change the triangle color
-    auto t_start = std::chrono::high_resolution_clock::now();
+    auto a_start = std::chrono::high_resolution_clock::now();
+    auto a_now = std::chrono::high_resolution_clock::now();
+    double interval = 0;
 
     // Register the keyboard callback
     glfwSetKeyCallback(window, key_callback);
@@ -451,10 +493,6 @@ int main(void){
         // Bind your program
         program.bind();
 
-        // Set the uniform value depending on the time difference
-        auto t_now = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration_cast<std::chrono::duration<float>>(t_now - t_start).count();
-
         glUniformMatrix4fv(program.uniform("view"), 1, GL_FALSE, glm::value_ptr(VIEW));
         glUniformMatrix4fv(program.uniform("projection"), 1, GL_FALSE, glm::value_ptr(PROJECTION));
 
@@ -470,6 +508,23 @@ int main(void){
             glm::vec2 motion = cursor_pos - last_cursor_pos;
             for(int i = 0;i < 3;i++)
                 V[SELECTED_OBJECT+i] += motion;
+        }
+
+        if(Operation_mode == ANIMATION_MODE){
+            if(ANIMATION){
+                a_start = std::chrono::high_resolution_clock::now();
+                V_diff[0] = V_BUF[PRIM_SELECT] - V[PRIM_SELECT];
+                V_diff[1] = V_BUF[PRIM_SELECT+1] - V[PRIM_SELECT+1];
+                V_diff[2] = V_BUF[PRIM_SELECT+2] - V[PRIM_SELECT+2];
+                ANIMATION = false;
+            }
+            a_now = std::chrono::high_resolution_clock::now();
+            interval = std::chrono::duration_cast<std::chrono::duration<float>>(a_now - a_start).count();
+            if(interval < 1.0){
+                V[PRIM_SELECT] = V_BUF[PRIM_SELECT] - V_diff[0] * (float)(1-interval);
+                V[PRIM_SELECT+1] = V_BUF[PRIM_SELECT+1] - V_diff[1] * (float)(1-interval);
+                V[PRIM_SELECT+2] = V_BUF[PRIM_SELECT+2] - V_diff[2] * (float)(1-interval);
+            }
         }
 
         VBO.update(V);
