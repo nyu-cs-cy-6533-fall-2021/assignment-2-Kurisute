@@ -49,7 +49,7 @@ VertexBufferObject VBO_C;
 // Contains the vertex positions
 //Eigen::MatrixXf V(2,3);
 std::vector<glm::vec2> V(4);
-std::vector<glm::vec2> CENTER(4);
+std::vector<glm::vec4> CENTER(4);
 std::vector<glm::vec3> C(4);
 std::vector<glm::vec3> C_BACK_UP(3);
 glm::mat4 VIEW;
@@ -120,7 +120,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         {
         case INSERT_MODE:
             V.push_back(world_pos);
-            CENTER.push_back(world_pos);
+            CENTER.push_back(glm::vec4(world_pos,0.0,0.0));
             C.push_back(glm::vec3(1.0f,1.0f,1.0f));
             MODEL.push_back(glm::mat4(1.0f));
             ROTATE.push_back(glm::mat4(1.0f));
@@ -380,9 +380,9 @@ int main(void){
     C[3] = glm::vec3(1.0, 1.0, 1.0);
     VBO_C.update(C);
 
-    CENTER[0] = glm::vec2(0, 0);
-    CENTER[1] = glm::vec2(0, 0);
-    CENTER[2] = glm::vec2(0, 0);
+    CENTER[0] = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    CENTER[1] = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    CENTER[2] = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
     glm::vec2 last_cursor_pos;
 
@@ -408,10 +408,10 @@ int main(void){
                     "uniform mat4 view;"
                     "uniform mat4 projection;"
                     "uniform mat4 model;"
-                    "uniform vec2 center;"
+                    "uniform vec4 center;"
                     "void main()"
                     "{"
-                    "    gl_Position = projection * view * (model * vec4(position, 0.0, 1.0));"
+                    "    gl_Position = projection * view * model * vec4(position, 0.0, 1.0);"
                     "    f_color = color;"
                     "}";
     const GLchar* fragment_shader =
@@ -481,9 +481,9 @@ int main(void){
 
         //Draw triangles
         for(int i = 0;i < V.size()-3;i+=3){
-            CENTER[i] = (V[i] + V[i+1] + V[i+2])/3.0f;
-            CENTER[i+1] = (V[i] + V[i+1] + V[i+2])/3.0f;
-            CENTER[i+2] = (V[i] + V[i+1] + V[i+2])/3.0f;
+            CENTER[i] = glm::vec4((V[i] + V[i+1] + V[i+2])/3.0f,0.0f,0.0f);
+            CENTER[i+1] = glm::vec4((V[i] + V[i+1] + V[i+2])/3.0f,0.0f,0.0f);
+            CENTER[i+2] = glm::vec4((V[i] + V[i+1] + V[i+2])/3.0f,0.0f,0.0f);
             MODEL[i] = TRANS[i] * SCALE[i] * ROTATE[i];
             glUniformMatrix4fv(program.uniform("model"), 1, GL_FALSE, glm::value_ptr(MODEL[i]));
             glUniformMatrix4fv(program.uniform("center"), 1, GL_FALSE, glm::value_ptr(CENTER[i]));
